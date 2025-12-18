@@ -17,7 +17,6 @@ public class CartItemResponseDto {
     private Long bookId;
     private String title;
     private String author;
-    private String description;
     private BigDecimal price;
     private Integer quantity;
     private BigDecimal subtotal;
