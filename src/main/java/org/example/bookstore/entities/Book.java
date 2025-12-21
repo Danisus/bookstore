@@ -28,9 +28,7 @@ public class Book {
     private String description;
     @Column(nullable = false)
     private BigDecimal price;
-    //жанр
     private String genre;
-    //кол-во книг на складе
     @Column(nullable = false)
     private int stock;
     @CreationTimestamp

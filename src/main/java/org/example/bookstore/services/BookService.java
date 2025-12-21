@@ -23,7 +23,7 @@ public class BookService {
     }
 
     public BookResponseDto getBookById(Long id){
-        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с id " + id + " не найдена"));
+        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с не найдена"));
         return toResponseDto(book);
     }
 
@@ -45,7 +45,7 @@ public class BookService {
     }
 
     public BookResponseDto updateBook(Long id, BookRequestDto requestDto){
-        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с id " + id + " не найдена"));
+        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с не найдена"));
         book.setAuthor(requestDto.getAuthor());
         book.setTitle(requestDto.getTitle());
         book.setDescription(requestDto.getDescription());
@@ -57,7 +57,7 @@ public class BookService {
     }
 
     public void deleteBook(Long id){
-        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с id " + id + " не найдена"));
+        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("книга с не найдена"));
         bookRepository.delete(book);
     }
 

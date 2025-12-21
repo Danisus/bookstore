@@ -26,7 +26,6 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status = OrderStatus.PENDING;
-    //общая сумма заказа
     @Column(nullable = false)
     private BigDecimal totalPrice;
 

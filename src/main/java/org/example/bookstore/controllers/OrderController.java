@@ -3,11 +3,13 @@ package org.example.bookstore.controllers;
 import lombok.RequiredArgsConstructor;
 import org.example.bookstore.dto.OrderResponseDto;
 import org.example.bookstore.services.OrderService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@RequestMapping("/api/orders/{userId}")
+@PreAuthorize("hasRole('USER')")
+@RequestMapping("/api/orders")
 @RequiredArgsConstructor
 @RestController
 public class OrderController {
@@ -15,18 +17,18 @@ public class OrderController {
     private final OrderService service;
 
     @PostMapping
-    public OrderResponseDto createOrder(@PathVariable Long userId){
-        return service.createOrder(userId);
+    public OrderResponseDto createOrder(){
+        return service.createOrder();
     }
 
     @GetMapping
-    public List<OrderResponseDto> getOrders(@PathVariable Long userId){
-        return service.getOrders(userId);
+    public List<OrderResponseDto> getOrders(){
+        return service.getOrders();
     }
 
     @GetMapping("/{orderId}")
-    public OrderResponseDto getOrderById(@PathVariable Long userId, @PathVariable Long orderId){
-        return service.getOrderById(userId, orderId);
+    public OrderResponseDto getOrderById(@PathVariable Long orderId){
+        return service.getOrderById(orderId);
     }
 
 }

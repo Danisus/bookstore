@@ -20,7 +20,6 @@ public class CartItem {
     private User user;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "book_id")
     private Book book;
-    //кол-во в корзине
     @Column(nullable = false)
     private int quantity;
 

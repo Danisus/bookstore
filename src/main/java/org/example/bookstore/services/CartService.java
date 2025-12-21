@@ -9,52 +9,62 @@ import org.example.bookstore.entities.User;
 import org.example.bookstore.repositories.BookRepository;
 import org.example.bookstore.repositories.CartItemRepository;
 import org.example.bookstore.repositories.UserRepository;
+import org.example.bookstore.security.SecurityUtil;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 @Service
 public class CartService {
     private final CartItemRepository cartItemrepository;
-    private final UserRepository userRepository;
+    private final SecurityUtil securityUtil;
     private final BookRepository bookRepository;
+    private final UserRepository userRepository;
 
-    public List<CartItemResponseDto> getCart(Long userId){
-        List<CartItem> cartItems = cartItemrepository.findByUserId(userId);
+    public List<CartItemResponseDto> getCart(){
+        String email = securityUtil.getCurrentUserEmail();
+        List<CartItem> cartItems = cartItemrepository.findByUserEmail(email);
         return cartItems.stream().map(this::toResponse).toList();
     }
 
-    public CartItemResponseDto addToCart(Long userId, AddToCartRequestDto requestDto){
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
-        Book book = bookRepository.findById(requestDto.getBookId()).orElseThrow(() -> new RuntimeException("книга с id " + requestDto.getBookId() + " не найдена"));
-        if (book.getStock() < requestDto.getQuantity())
-            throw new RuntimeException("недостаточно книг на складе");
+    public CartItemResponseDto addToCart(AddToCartRequestDto requestDto) {
+        String email = securityUtil.getCurrentUserEmail();
+        Book book = bookRepository.findById(requestDto.getBookId())
+                .orElseThrow(() -> new RuntimeException("Книга не найдена"));
 
-        CartItem cartItem = cartItemrepository.findByUserAndBook(user, book);
-        CartItem res;
-        if (cartItem != null){
-            int newQuantity = cartItem.getQuantity() + requestDto.getQuantity();
-            if (book.getStock() < newQuantity)
-                throw new RuntimeException("недостаточно книг на складе");
-            cartItem.setQuantity(newQuantity);
-            res = cartItemrepository.save(cartItem);
-        }else {
-            CartItem item = CartItem.builder()
-                    .user(user)
+        if (book.getStock() < requestDto.getQuantity()) {
+            throw new RuntimeException("Недостаточно книг на складе");
+        }
+
+        Optional<CartItem> existing = cartItemrepository.findByUserEmailAndBook(email, book);
+
+        CartItem saved;
+        if (existing.isPresent()) {
+            CartItem item = existing.get();
+            int newQuantity = item.getQuantity() + requestDto.getQuantity();
+            if (book.getStock() < newQuantity) {
+                throw new RuntimeException("Недостаточно книг на складе после добавления");
+            }
+            item.setQuantity(newQuantity);
+            saved = cartItemrepository.save(item);
+        } else {
+            CartItem newItem = CartItem.builder()
+                    .user(userRepository.findUserByEmail(email).orElseThrow()) // только здесь загружаем User
                     .book(book)
                     .quantity(requestDto.getQuantity())
                     .build();
-
-            res = cartItemrepository.save(item);
+            saved = cartItemrepository.save(newItem);
         }
-        return toResponse(res);
-    }
 
-    public void updateQuantity(Long userId, Long bookId, Integer newQuantity){
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new RuntimeException("книга с id " + bookId + " не найдена"));
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
+        return toResponse(saved);
+    }
+    public void updateQuantity(Long bookId, Integer newQuantity){
+        String email = securityUtil.getCurrentUserEmail();
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new RuntimeException("книга с не найдена"));
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
         CartItem item = cartItemrepository.findByUserAndBook(user, book);
         if (newQuantity <= 0) {
             cartItemrepository.delete(item);
@@ -66,17 +76,18 @@ public class CartService {
         cartItemrepository.save(item);
     }
 
-    public void removeFromCart(Long userId, Long bookId){
-        Book book = bookRepository.findById(bookId).orElseThrow(() -> new RuntimeException("книга с id " + bookId + " не найдена"));
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
+    public void removeFromCart(Long bookId){
+        String email = securityUtil.getCurrentUserEmail();
+        Book book = bookRepository.findById(bookId).orElseThrow(() -> new RuntimeException("книга с не найдена"));
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
         CartItem item = cartItemrepository.findByUserAndBook(user, book);
         cartItemrepository.delete(item);
     }
 
-    public void clearCart(Long userId){
-        List<CartItem> cartItems = cartItemrepository.findByUserId(userId);
-        for(CartItem item: cartItems)
-            cartItemrepository.delete(item);
+    public void clearCart(){
+        String email = securityUtil.getCurrentUserEmail();
+        List<CartItem> cartItems = cartItemrepository.findByUserEmail(email);
+        cartItemrepository.deleteAll(cartItems);
     }
 
 

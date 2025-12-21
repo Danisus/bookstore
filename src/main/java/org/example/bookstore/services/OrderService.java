@@ -5,6 +5,7 @@ import org.example.bookstore.dto.OrderItemResponseDto;
 import org.example.bookstore.dto.OrderResponseDto;
 import org.example.bookstore.entities.*;
 import org.example.bookstore.repositories.*;
+import org.example.bookstore.security.SecurityUtil;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -20,9 +21,11 @@ public class OrderService {
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
+    private final SecurityUtil securityUtil;
 
-    public OrderResponseDto createOrder(Long userId){
-        List<CartItem> cartItems = cartItemRepository.findByUserId(userId);
+    public OrderResponseDto createOrder(){
+        String email = securityUtil.getCurrentUserEmail();
+        List<CartItem> cartItems = cartItemRepository.findByUserEmail(email);
         if (cartItems.isEmpty())
             throw new RuntimeException("корзина пустая");
         BigDecimal totalPrice = BigDecimal.ZERO;
@@ -35,7 +38,7 @@ public class OrderService {
 
             totalPrice = totalPrice.add(subtotal);
         }
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
 
         Order order = Order.builder()
                 .user(user)
@@ -58,20 +61,21 @@ public class OrderService {
             orderItemRepository.save(orderItem);
         }
 
-        for (CartItem item: cartItems)
-            cartItemRepository.delete(item);
+        cartItemRepository.deleteAll(cartItems);
 
         return toResponse(order);
     }
 
-    public List<OrderResponseDto> getOrders(Long userId){
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
+    public List<OrderResponseDto> getOrders(){
+        String email = securityUtil.getCurrentUserEmail();
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
         return orderRepository.findByUser(user).stream().map(this::toResponse).toList();
     }
 
-    public OrderResponseDto getOrderById(Long userId, Long orderId){
-        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("пользователь с id " + userId + " не найден"));
-        Order order = orderRepository.findByUserAndId(user, orderId).orElseThrow(() -> new RuntimeException("заказ с id " + orderId + " не найден"));
+    public OrderResponseDto getOrderById(Long orderId){
+        String email = securityUtil.getCurrentUserEmail();
+        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
+        Order order = orderRepository.findByUserAndId(user, orderId).orElseThrow(() -> new RuntimeException("заказ с  не найден"));
         return toResponse(order);
     }
 

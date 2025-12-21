@@ -22,10 +22,8 @@ public class OrderItem {
     private Order order;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "book_id")
     private Book book;
-    //кол-во
     @Column(nullable = false)
     private int quantity;
-    //цена на момент покупки
     @Column(nullable = false)
     private BigDecimal priceAtPurchase;
 
