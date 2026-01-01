@@ -17,28 +17,34 @@ import java.util.List;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final BookRepository bookRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartItemRepository cartItemRepository;
+    private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final SecurityUtil securityUtil;
 
-    public OrderResponseDto createOrder(){
+    public OrderResponseDto createOrder() {
         String email = securityUtil.getCurrentUserEmail();
-        List<CartItem> cartItems = cartItemRepository.findByUserEmail(email);
-        if (cartItems.isEmpty())
-            throw new RuntimeException("корзина пустая");
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        for (CartItem item: cartItems){
-            if (item.getQuantity() > item.getBook().getStock())
-                throw new RuntimeException("кол-во книг в заказе превышает кол-во книг на складе");
-            BigDecimal price = item.getBook().getPrice();
-            Integer quantity = item.getQuantity();
-            BigDecimal subtotal = price.multiply(new BigDecimal(quantity));
 
+        List<CartItem> cartItems = cartItemRepository.findByUserEmail(email);
+
+        if (cartItems.isEmpty()) {
+            throw new RuntimeException("Корзина пуста");
+        }
+
+        BigDecimal totalPrice = BigDecimal.ZERO;
+
+        for (CartItem cartItem : cartItems) {
+            Book book = cartItem.getBook();
+            if (cartItem.getQuantity() > book.getStock()) {
+                throw new RuntimeException("Недостаточно книг на складе: " + book.getTitle());
+            }
+            BigDecimal subtotal = book.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity()));
             totalPrice = totalPrice.add(subtotal);
         }
-        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
+
+        User user = userRepository.findUserByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
 
         Order order = Order.builder()
                 .user(user)
@@ -46,19 +52,23 @@ public class OrderService {
                 .status(OrderStatus.PENDING)
                 .totalPrice(totalPrice)
                 .build();
-        orderRepository.save(order);
 
-        for (CartItem item: cartItems){
+        order = orderRepository.save(order);
+
+        for (CartItem cartItem : cartItems) {
+            Book book = cartItem.getBook();
+
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
-                    .book(item.getBook())
-                    .quantity(item.getQuantity())
-                    .priceAtPurchase(item.getBook().getPrice())
+                    .book(book)
+                    .quantity(cartItem.getQuantity())
+                    .priceAtPurchase(book.getPrice())
                     .build();
-            Book book = item.getBook();
-            book.setStock(item.getBook().getStock() - item.getQuantity());
-            bookRepository.save(book);
+
             orderItemRepository.save(orderItem);
+
+            book.setStock(book.getStock() - cartItem.getQuantity());
+            bookRepository.save(book);
         }
 
         cartItemRepository.deleteAll(cartItems);
@@ -66,40 +76,48 @@ public class OrderService {
         return toResponse(order);
     }
 
-    public List<OrderResponseDto> getOrders(){
+    public List<OrderResponseDto> getOrders() {
         String email = securityUtil.getCurrentUserEmail();
-        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
-        return orderRepository.findByUser(user).stream().map(this::toResponse).toList();
+        return orderRepository.findByUserEmail(email)
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    public OrderResponseDto getOrderById(Long orderId){
+    public OrderResponseDto getOrderById(Long orderId) {
         String email = securityUtil.getCurrentUserEmail();
-        User user = userRepository.findUserByEmail(email).orElseThrow(() -> new RuntimeException("пользователь не найден"));
-        Order order = orderRepository.findByUserAndId(user, orderId).orElseThrow(() -> new RuntimeException("заказ с  не найден"));
+        Order order = orderRepository.findByUserEmailAndId(email, orderId)
+                .orElseThrow(() -> new RuntimeException("Заказ не найден"));
+
         return toResponse(order);
     }
 
+    private OrderResponseDto toResponse(Order order) {
+        List<OrderItemResponseDto> itemDtos = orderItemRepository.findByOrder(order)
+                .stream()
+                .map(this::toItemResponse)
+                .toList();
 
-
-    private OrderResponseDto toResponse(Order order){
         return OrderResponseDto.builder()
                 .id(order.getId())
                 .orderDate(order.getOrderDate())
-                .status(order.getStatus().toString())
+                .status(order.getStatus().name())
                 .totalPrice(order.getTotalPrice())
-                .items(orderItemRepository.findByOrder(order).stream().map(this::toItemResponse).toList())
+                .items(itemDtos)
                 .build();
     }
 
-    private OrderItemResponseDto toItemResponse(OrderItem item){
-        BigDecimal subtotal = item.getPriceAtPurchase().multiply(new BigDecimal(item.getQuantity()));
+    private OrderItemResponseDto toItemResponse(OrderItem orderItem) {
+        Book book = orderItem.getBook();
+        BigDecimal subtotal = orderItem.getPriceAtPurchase()
+                .multiply(BigDecimal.valueOf(orderItem.getQuantity()));
+
         return OrderItemResponseDto.builder()
-                .title(item.getBook().getTitle())
-                .author(item.getBook().getAuthor())
-                .quantity(item.getQuantity())
-                .priceAtPurchase(item.getPriceAtPurchase())
+                .title(book.getTitle())
+                .author(book.getAuthor())
+                .quantity(orderItem.getQuantity())
+                .priceAtPurchase(orderItem.getPriceAtPurchase())
                 .subtotal(subtotal)
                 .build();
     }
-
 }
